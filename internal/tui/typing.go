@@ -3,11 +3,11 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/vyrx-dev/toofan/internal/game"
-	"github.com/vyrx-dev/toofan/internal/lang"
 	"github.com/vyrx-dev/toofan/internal/theme"
 )
 
@@ -30,8 +30,8 @@ func (m model) handleTyping(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.mode == "words" {
 			m.pickingDifficulty = true
 			m.diffCur = 0
-			for i, d := range difficulties {
-				if d == m.difficulty {
+			for i, set := range m.wordSetNames() {
+				if set == m.difficulty {
 					m.diffCur = i
 				}
 			}
@@ -45,15 +45,17 @@ func (m model) handleTyping(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			} else {
 				m.mode = "words"
 			}
+			m.lang = languageForMode(m.mode, m.lang)
+			m.difficulty = wordSetForLanguage(m.mode, m.lang, m.difficulty)
 			m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
 			m.save()
 		}
 
 	case "ctrl+l":
-		if m.mode == "code" && !m.game.Started() {
+		if !m.game.Started() {
 			m.pickingLang = true
 			m.langCur = 0
-			for i, name := range lang.Names {
+			for i, name := range m.languageNames() {
 				if name == m.lang {
 					m.langCur = i
 				}
@@ -140,7 +142,7 @@ func (m model) viewTyping(p theme.Palette) string {
 	textWidth = max(textWidth, 40)
 
 	lines := splitLines(m.game.Text(), textWidth, m.game.CodeMode)
-	curLine := cursorLine(lines, len(m.game.Input()))
+	curLine := cursorLine(lines, utf8.RuneCountInString(m.game.Input()))
 
 	// word mode: 3 lines (monkeytype style), code mode: 7 lines (full snippet)
 	visible := 3
@@ -197,7 +199,7 @@ func (m model) viewTyping(p theme.Palette) string {
 			ratio = 1.0 - ratio // invert for progress
 		} else {
 			if len(m.game.Text()) > 0 {
-				ratio = min(float64(len(m.game.Input()))/float64(len(m.game.Text())), 1.0)
+				ratio = min(float64(utf8.RuneCountInString(m.game.Input()))/float64(utf8.RuneCountInString(m.game.Text())), 1.0)
 			}
 		}
 		barWidth := textWidth - 4
@@ -212,7 +214,7 @@ func (m model) viewTyping(p theme.Palette) string {
 		if m.mode == "code" {
 			modeLabel = "code (" + m.lang + ")"
 		} else {
-			modeLabel = "words"
+			modeLabel = "words (" + m.lang + " / " + m.game.WordSet() + ")"
 		}
 		info := dim.Render(modeLabel + " · ? help")
 		out = append(out, "", info)
@@ -232,11 +234,11 @@ func (m model) viewHelp(p theme.Palette) string {
 		hi.Render("keybinds"),
 		"",
 		val.Render("ctrl+w") + dim.Render("    toggle words/code"),
-		val.Render("ctrl+l") + dim.Render("    change language (code mode only)"),
+		val.Render("ctrl+l") + dim.Render("    change language"),
 		val.Render("ctrl+o") + dim.Render("    change lesson (code mode only)"),
 		val.Render("ctrl+t") + dim.Render("    change theme"),
 		val.Render("ctrl+p") + dim.Render("    open profile"),
-		val.Render("ctrl+d") + dim.Render("    change difficulty (words mode only)"),
+		val.Render("ctrl+d") + dim.Render("    change word set (words mode only)"),
 		val.Render("tab") + dim.Render("       change duration & restart"),
 		val.Render("esc") + dim.Render("       restart test immediately"),
 		val.Render("e") + dim.Render("         view error words (results screen)"),

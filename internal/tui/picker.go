@@ -12,18 +12,36 @@ import (
 
 // --- language picker ---
 
+func (m model) languageNames() []string {
+	if m.mode == "code" {
+		return lang.CodeNames
+	}
+	return lang.WordNames
+}
+
+func (m model) wordSetNames() []string {
+	return lang.WordSetNames(m.lang)
+}
+
 func (m model) handlePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	names := m.languageNames()
+	if len(names) == 0 {
+		m.pickingLang = false
+		return m, nil
+	}
+
 	switch msg.String() {
 	case "up", "k":
 		if m.langCur > 0 {
 			m.langCur--
 		}
 	case "down", "j":
-		if m.langCur < len(lang.Names)-1 {
+		if m.langCur < len(names)-1 {
 			m.langCur++
 		}
 	case "enter":
-		m.lang = lang.Names[m.langCur]
+		m.lang = names[m.langCur]
+		m.difficulty = wordSetForLanguage(m.mode, m.lang, m.difficulty)
 		m.pickingLang = false
 		m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
 		m.save()
@@ -34,7 +52,11 @@ func (m model) handlePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) viewPicker(p theme.Palette) string {
-	return renderList(p, "language", lang.Names, nil, m.langCur)
+	title := "word language"
+	if m.mode == "code" {
+		title = "code language"
+	}
+	return renderList(p, title, m.languageNames(), nil, m.langCur)
 }
 
 // --- lesson picker ---
@@ -128,10 +150,10 @@ func (m model) viewDurPicker(p theme.Palette) string {
 	return renderList(p, "time", durs, nil, m.durCur)
 }
 
-// --- difficulty picker ---
+// --- word set picker ---
 
 func (m model) viewDifficultyPicker(p theme.Palette) string {
-	return renderList(p, "difficulty", difficulties, nil, m.diffCur)
+	return renderList(p, "word set", m.wordSetNames(), nil, m.diffCur)
 }
 
 // clean list — no borders, just highlighted selection, padded uniformly

@@ -65,10 +65,7 @@ func loadProfile() profileData {
 		pd.Tests++
 		pd.Time += time.Duration(e.Dur) * time.Second
 
-		mode := e.Mode
-		if strings.HasPrefix(e.Mode, "code:") {
-			mode = "code"
-		}
+		mode, _, _ := splitResultMode(e.Mode)
 		if pd.Best[mode] == nil {
 			pd.Best[mode] = make(map[int]float64)
 		}
@@ -87,7 +84,8 @@ func loadProfile() profileData {
 	var wordsTests []testEntry
 	var codeTests []testEntry
 	for _, e := range all {
-		if !strings.HasPrefix(e.Mode, "code:") {
+		mode, _, _ := splitResultMode(e.Mode)
+		if mode == "words" {
 			wordsTests = append(wordsTests, e)
 		} else {
 			codeTests = append(codeTests, e)
@@ -160,6 +158,21 @@ func parseResultLine(line string) (testEntry, bool) {
 	}
 
 	return testEntry{Date: date, WPM: wpm, Dur: dur, Acc: acc, Mode: modeStr, Raw: raw, Errors: errors}, true
+}
+
+func splitResultMode(mode string) (string, string, string) {
+	parts := strings.Split(mode, ":")
+	if len(parts) >= 2 {
+		wordSet := ""
+		if len(parts) >= 3 {
+			wordSet = parts[2]
+		}
+		return parts[0], parts[1], wordSet
+	}
+	if mode == "code" {
+		return "code", "", ""
+	}
+	return "words", "english", ""
 }
 
 func (m model) handleProfile(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -371,9 +384,10 @@ func (m model) viewProfile(p theme.Palette) string {
 		col(7, hi.Render("wpm")),
 		col(7, hi.Render("raw")),
 		col(12, hi.Render("accuracy")),
-		col(9, hi.Render("typos")),
-		col(9, hi.Render("mode")),
-		col(12, hi.Render("language")),
+		col(8, hi.Render("typos")),
+		col(8, hi.Render("mode")),
+		col(10, hi.Render("language")),
+		col(8, hi.Render("set")),
 		col(8, hi.Render("time")),
 		col(16, hi.Render("date")),
 	)
@@ -388,11 +402,10 @@ func (m model) viewProfile(p theme.Palette) string {
 		e := m.prof.Recent[i]
 		dstr := e.Date.Format("02 Jan 15:04")
 
-		modeType := "words"
-		modeLang := "english"
-		if strings.HasPrefix(e.Mode, "code:") {
-			modeType = "code"
-			modeLang = truncateLang(strings.TrimPrefix(e.Mode, "code:"))
+		modeType, modeLang, wordSet := splitResultMode(e.Mode)
+		modeLang = truncateLang(modeLang)
+		if wordSet == "" {
+			wordSet = "-"
 		}
 
 		durStr := "∞"
@@ -404,9 +417,10 @@ func (m model) viewProfile(p theme.Palette) string {
 			col(7, val.Render(fmt.Sprintf("%.0f", e.WPM))),
 			col(7, dim.Render(fmt.Sprintf("%.0f", e.Raw))),
 			col(12, dim.Render(fmt.Sprintf("%.0f%%", e.Acc))),
-			col(9, dim.Render(fmt.Sprintf("%d", e.Errors))),
-			col(9, dim.Render(modeType)),
-			col(12, dim.Render(modeLang)),
+			col(8, dim.Render(fmt.Sprintf("%d", e.Errors))),
+			col(8, dim.Render(modeType)),
+			col(10, dim.Render(modeLang)),
+			col(8, dim.Render(wordSet)),
 			col(8, dim.Render(durStr)),
 			col(16, dim.Render(dstr)),
 		)

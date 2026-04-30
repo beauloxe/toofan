@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/vyrx-dev/toofan/internal/game"
@@ -15,12 +16,12 @@ func colorText(g *game.Game, p theme.Palette, lines []string, top, bot int) stri
 	cur := lipgloss.NewStyle().Foreground(p.Background).Background(p.Cursor)
 	dim := lipgloss.NewStyle().Foreground(p.Foreground)
 
-	typed := len(g.Input())
+	typed := utf8.RuneCountInString(g.Input())
 
 	// character offset at top of visible window
 	startPos := 0
 	for i := 0; i < top; i++ {
-		startPos += len(lines[i]) + 1 // +1 for the \n or space separator
+		startPos += utf8.RuneCountInString(lines[i]) + 1 // +1 for the \n or space separator
 	}
 
 	var out strings.Builder
@@ -66,7 +67,7 @@ func wrapText(text string, w int) []string {
 	lineLen := 0
 
 	for _, word := range strings.Split(text, " ") {
-		wordLen := len(word)
+		wordLen := lipgloss.Width(word)
 		space := 0
 		if lineLen > 0 {
 			space = 1
@@ -97,7 +98,7 @@ func wrapText(text string, w int) []string {
 func cursorLine(lines []string, inputLen int) int {
 	pos := 0
 	for i, line := range lines {
-		end := pos + len(line)
+		end := pos + utf8.RuneCountInString(line)
 		if inputLen <= end {
 			return i
 		}

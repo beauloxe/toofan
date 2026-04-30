@@ -7,11 +7,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/vyrx-dev/toofan/internal/game"
+	"github.com/vyrx-dev/toofan/internal/lang"
 	"github.com/vyrx-dev/toofan/internal/theme"
 )
 
 var durations = []int{0, 15, 30, 60, 120}
-var difficulties = []string{"easy", "medium", "hard"}
 
 type screen int
 
@@ -22,26 +22,26 @@ const (
 )
 
 type model struct {
-	active   screen
-	game     *game.Game
-	duration int
-	mode     string // "words" or "code"
-	lang     string
+	active     screen
+	game       *game.Game
+	duration   int
+	mode       string // "words" or "code"
+	lang       string
 	difficulty string
 
 	width, height int
 
-	pickingDur    bool
-	durCur        int
-	pickingLang   bool
-	langCur       int
-	pickingLesson bool
-	lessonCur     int
-	pickingTheme  bool
-	themeCur      int
+	pickingDur        bool
+	durCur            int
+	pickingLang       bool
+	langCur           int
+	pickingLesson     bool
+	lessonCur         int
+	pickingTheme      bool
+	themeCur          int
 	pickingDifficulty bool
 	diffCur           int
-	showHelp      bool
+	showHelp          bool
 
 	result        game.Stats
 	pb            float64
@@ -62,12 +62,14 @@ type model struct {
 func New() model {
 	duration, mode, language, difficulty, th := game.LoadConfig()
 	theme.Current = theme.ByName(th)
+	language = languageForMode(mode, language)
+	difficulty = wordSetForLanguage(mode, language, difficulty)
 
 	return model{
-		game:     game.New(duration, mode, language, difficulty),
-		duration: duration,
-		mode:     mode,
-		lang:     language,
+		game:       game.New(duration, mode, language, difficulty),
+		duration:   duration,
+		mode:       mode,
+		lang:       language,
 		difficulty: difficulty,
 	}
 }
@@ -75,7 +77,7 @@ func New() model {
 type tick time.Time
 
 func (m model) isPaused() bool {
-	return m.pickingDur || m.pickingLang || m.pickingLesson || m.pickingTheme || m.showHelp
+	return m.pickingDur || m.pickingLang || m.pickingLesson || m.pickingTheme || m.pickingDifficulty || m.showHelp
 }
 
 func (m model) Init() tea.Cmd {
@@ -106,7 +108,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if durToSave == 0 {
 						durToSave = m.game.TimeLeft()
 					}
-					game.SaveResult(m.result, durToSave, m.mode, m.lang)
+					game.SaveResult(m.result, durToSave, m.mode, m.lang, m.game.WordSet())
 					if m.gotNewPB {
 						game.SavePB(m.duration, m.mode, m.result.WPM)
 					}
@@ -201,6 +203,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if m.pickingDifficulty {
+			sets := m.wordSetNames()
+			if len(sets) == 0 {
+				m.pickingDifficulty = false
+				return m, nil
+			}
 			switch msg.String() {
 			case "up", "k", "left", "h":
 				if m.diffCur > 0 {
@@ -208,12 +215,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			case "down", "j", "right", "l":
-				if m.diffCur < len(difficulties)-1 {
+				if m.diffCur < len(sets)-1 {
 					m.diffCur++
 				}
 				return m, nil
 			case "enter":
-				m.difficulty = difficulties[m.diffCur]
+				m.difficulty = sets[m.diffCur]
 				m.pickingDifficulty = false
 				m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
 				m.save()
@@ -287,6 +294,31 @@ func (m model) View() string {
 
 func (m model) save() {
 	game.SaveConfig(m.duration, m.mode, m.lang, m.difficulty, theme.Current.Name)
+}
+
+func languageForMode(mode string, language string) string {
+	if mode == "code" {
+		if lang.HasSnippets(language) {
+			return language
+		}
+		return lang.DefaultCodeName()
+	}
+	if lang.HasWords(language) {
+		return language
+	}
+	return lang.DefaultWordName()
+}
+
+func wordSetForLanguage(mode string, language string, wordSet string) string {
+	if mode != "words" {
+		return wordSet
+	}
+	for _, set := range lang.WordSetNames(language) {
+		if set == wordSet {
+			return wordSet
+		}
+	}
+	return lang.DefaultWordSet(language)
 }
 
 func nextDur(cur int) int {

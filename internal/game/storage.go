@@ -18,8 +18,8 @@ func init() {
 }
 
 // SaveResult appends a line to results.txt — human readable
-// format: 2026-04-01 22:18 |  85 wpm | 97.5% | 30s | words | tokyonight
-func SaveResult(s Stats, duration int, mode string, language string) {
+// format: 2026-04-01 22:18 |  85 wpm | 97.5% | 30s | words:english:english_1k | 83 raw | 2 err
+func SaveResult(s Stats, duration int, mode string, language string, wordSet string) {
 	os.MkdirAll(dataDir, 0755)
 
 	f, err := os.OpenFile(
@@ -34,6 +34,11 @@ func SaveResult(s Stats, duration int, mode string, language string) {
 	label := mode
 	if mode == "code" {
 		label = "code:" + language
+	} else if mode == "words" && language != "" {
+		label = "words:" + language
+		if wordSet != "" {
+			label += ":" + wordSet
+		}
 	}
 
 	fmt.Fprintf(f, "%s | %3.0f wpm | %5.1f%% | %3ds | %s | %3.0f raw | %d err\n",
@@ -100,8 +105,8 @@ func SavePB(duration int, mode string, wpm float64) {
 	}
 }
 
-func LoadConfig() (duration int, mode string, language string, difficulty string, themeName string) {
-	duration, mode, language, difficulty, themeName = 30, "words", "go", "easy", "tokyonight"
+func LoadConfig() (duration int, mode string, language string, wordSet string, themeName string) {
+	duration, mode, language, wordSet, themeName = 30, "words", "english", "easy", "tokyonight"
 
 	path := filepath.Join(dataDir, "config.txt")
 	f, err := os.Open(path)
@@ -123,8 +128,8 @@ func LoadConfig() (duration int, mode string, language string, difficulty string
 			mode = parts[1]
 		case "lang":
 			language = parts[1]
-		case "difficulty":
-			difficulty = parts[1]
+		case "difficulty", "wordset":
+			wordSet = parts[1]
 		case "theme":
 			themeName = parts[1]
 		}
@@ -132,7 +137,7 @@ func LoadConfig() (duration int, mode string, language string, difficulty string
 	return
 }
 
-func SaveConfig(duration int, mode string, language string, difficulty string, themeName string) {
+func SaveConfig(duration int, mode string, language string, wordSet string, themeName string) {
 	os.MkdirAll(dataDir, 0755)
 	f, err := os.Create(filepath.Join(dataDir, "config.txt"))
 	if err != nil {
@@ -140,8 +145,8 @@ func SaveConfig(duration int, mode string, language string, difficulty string, t
 	}
 	defer f.Close()
 
-	fmt.Fprintf(f, "duration=%d\nmode=%s\nlang=%s\ndifficulty=%s\ntheme=%s\n",
-		duration, mode, language, difficulty, themeName)
+	fmt.Fprintf(f, "duration=%d\nmode=%s\nlang=%s\nwordset=%s\ntheme=%s\n",
+		duration, mode, language, wordSet, themeName)
 }
 
 // SplitBundle parses a bundled backup file (sections marked with "### filename")

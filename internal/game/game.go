@@ -3,6 +3,7 @@ package game
 import (
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/vyrx-dev/toofan/internal/lang"
 )
@@ -16,15 +17,16 @@ type Stats struct {
 }
 
 type Game struct {
-	text      string
-	Snippet   lang.Snippet
-	input     string
-	errors    map[int]bool // unfixed errors — used for live display coloring
-	mistakeAt map[int]bool // every wrong keystroke ever — never cleared by backspace
-	started   bool
-	duration  int
-	CodeMode  bool // true = snippet-based typing, false = standard words
+	text       string
+	Snippet    lang.Snippet
+	input      string
+	errors     map[int]bool // unfixed errors — used for live display coloring
+	mistakeAt  map[int]bool // every wrong keystroke ever — never cleared by backspace
+	started    bool
+	duration   int
+	CodeMode   bool // true = snippet-based typing, false = standard words
 	difficulty string
+	wordSet    string
 
 	elapsed   time.Duration
 	lastTyped time.Time
@@ -32,28 +34,36 @@ type Game struct {
 }
 
 // Accessors for fields that TUI needs to read
-func (g *Game) Text() string         { return g.text }
-func (g *Game) Input() string        { return g.input }
-func (g *Game) Errors() map[int]bool { return g.errors }
-func (g *Game) Started() bool        { return g.started }
-func (g *Game) Duration() int        { return g.duration }
+func (g *Game) Text() string           { return g.text }
+func (g *Game) Input() string          { return g.input }
+func (g *Game) Errors() map[int]bool   { return g.errors }
+func (g *Game) Started() bool          { return g.started }
+func (g *Game) Duration() int          { return g.duration }
 func (g *Game) Elapsed() time.Duration { return g.elapsed }
-func (g *Game) SetText(s string)     { g.text = normalizeTabs(s) }
+func (g *Game) SetText(s string)       { g.text = normalizeTabs(s) }
+func (g *Game) WordSet() string        { return g.wordSet }
 
 func New(duration int, mode string, language string, difficulty string) *Game {
 	g := &Game{
-		duration:  duration, // 0 means infinite mode (tied to length of snippet)
-		errors:    make(map[int]bool),
-		mistakeAt: make(map[int]bool),
+		duration:   duration, // 0 means infinite mode (tied to length of snippet)
+		errors:     make(map[int]bool),
+		mistakeAt:  make(map[int]bool),
 		difficulty: difficulty,
 	}
 
 	if mode == "code" {
+		if !lang.HasSnippets(language) {
+			language = lang.DefaultCodeName()
+		}
 		g.CodeMode = true
 		g.Snippet = lang.RandomSnippet(language, difficulty)
 		g.text = normalizeTabs(g.Snippet.Content)
 	} else {
-		words := lang.RandomWords(language, difficulty, 200)
+		if !lang.HasWords(language) {
+			language = lang.DefaultWordName()
+		}
+		words, wordSet := lang.RandomWordsWithSet(language, difficulty, 200)
+		g.wordSet = wordSet
 		g.text = strings.Join(words, " ")
 	}
 
@@ -77,15 +87,37 @@ func normalizeTabs(s string) string {
 }
 
 func isStartOfLine(s string) bool {
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i] == '\n' {
+	for i := len(s); i > 0; {
+		r, size := utf8.DecodeLastRuneInString(s[:i])
+		i -= size
+		if r == '\n' {
 			return true
 		}
-		if s[i] != ' ' {
+		if r != ' ' {
 			return false
 		}
 	}
 	return true
+}
+
+func runeLen(s string) int {
+	return utf8.RuneCountInString(s)
+}
+
+func trimLastRune(s string) string {
+	if s == "" {
+		return s
+	}
+	_, size := utf8.DecodeLastRuneInString(s)
+	return s[:len(s)-size]
+}
+
+func lastRune(s string) (rune, bool) {
+	if s == "" {
+		return 0, false
+	}
+	r, _ := utf8.DecodeLastRuneInString(s)
+	return r, true
 }
 
 func (g *Game) TypeChar(ch rune) {
@@ -100,13 +132,14 @@ func (g *Game) TypeChar(ch rune) {
 
 	g.lastTyped = time.Now()
 
-	pos := len(g.input)
-	if pos >= len(g.text) {
+	textRunes := []rune(g.text)
+	pos := runeLen(g.input)
+	if pos >= len(textRunes) {
 		return
 	}
 
 	if g.CodeMode {
-		if g.text[pos] == '\n' {
+		if textRunes[pos] == '\n' {
 			if ch == ' ' {
 				ch = '\n' // allow space to act as enter at the end of a line
 			}
@@ -119,14 +152,14 @@ func (g *Game) TypeChar(ch rune) {
 	}
 
 	g.input += string(ch)
-	if g.text[pos] != byte(ch) {
+	if textRunes[pos] != ch {
 		g.errors[pos] = true
 		g.mistakeAt[pos] = true
 	}
 
 	// auto-skip newlines and leading indentation
-	for len(g.input) < len(g.text) {
-		next := g.text[len(g.input)]
+	for runeLen(g.input) < len(textRunes) {
+		next := textRunes[runeLen(g.input)]
 		if next == '\n' {
 			if g.CodeMode {
 				break
@@ -140,32 +173,34 @@ func (g *Game) TypeChar(ch rune) {
 	}
 }
 
-
 func (g *Game) Backspace() {
-	if len(g.input) == 0 {
+	if g.input == "" {
 		return
 	}
 
 	g.lastTyped = time.Now()
 
 	// skip back over auto-inserted newlines and leading whitespace
-	for len(g.input) > 0 {
-		last := g.input[len(g.input)-1]
+	for g.input != "" {
+		last, ok := lastRune(g.input)
+		if !ok {
+			break
+		}
 		if last == '\n' {
 			if g.CodeMode {
 				break
 			}
-			g.input = g.input[:len(g.input)-1]
-		} else if last == ' ' && isStartOfLine(g.input[:len(g.input)-1]) {
-			g.input = g.input[:len(g.input)-1]
+			g.input = trimLastRune(g.input)
+		} else if last == ' ' && isStartOfLine(trimLastRune(g.input)) {
+			g.input = trimLastRune(g.input)
 		} else {
 			break
 		}
 	}
 
-	if len(g.input) > 0 {
-		pos := len(g.input) - 1
-		g.input = g.input[:pos]
+	if g.input != "" {
+		pos := runeLen(g.input) - 1
+		g.input = trimLastRune(g.input)
 		delete(g.errors, pos)
 		// mistakeAt is NOT cleared — tracks lifetime errors
 	}
@@ -191,9 +226,9 @@ func (g *Game) Finished() bool {
 	}
 	if g.duration == 0 {
 		// Infinite duration finishes when the text is completed
-		return len(g.input) >= len(g.text)
+		return runeLen(g.input) >= runeLen(g.text)
 	}
-	return g.TimeLeft() == 0 || len(g.input) >= len(g.text)
+	return g.TimeLeft() == 0 || runeLen(g.input) >= runeLen(g.text)
 }
 
 func (g *Game) Stats() Stats {
@@ -210,8 +245,8 @@ func (g *Game) Stats() Stats {
 	total := 0
 	unfixed := 0
 	mistakes := 0
-	for i := 0; i < len(g.input); i++ {
-		if g.input[i] != '\n' {
+	for i, ch := range []rune(g.input) {
+		if ch != '\n' {
 			total++
 			if g.errors[i] {
 				unfixed++
@@ -249,14 +284,15 @@ func (g *Game) ErrorWords() []string {
 	}
 	words := strings.Split(g.text, " ")
 	pos := 0
+	inputLen := runeLen(g.input)
 	var result []string
 	seen := make(map[string]bool)
 	for _, word := range words {
-		if pos >= len(g.input) {
+		if pos >= inputLen {
 			break
 		}
 		hasErr := false
-		for j := 0; j < len(word) && pos+j < len(g.input); j++ {
+		for j := 0; j < runeLen(word) && pos+j < inputLen; j++ {
 			if g.mistakeAt[pos+j] {
 				hasErr = true
 				break
@@ -266,7 +302,7 @@ func (g *Game) ErrorWords() []string {
 			result = append(result, word)
 			seen[word] = true
 		}
-		pos += len(word) + 1 // +1 for space separator
+		pos += runeLen(word) + 1 // +1 for space separator
 	}
 	return result
 }
@@ -274,12 +310,20 @@ func (g *Game) ErrorWords() []string {
 func (g *Game) Reset(mode string, language string, difficulty string) {
 	g.difficulty = difficulty
 	if mode == "code" {
+		if !lang.HasSnippets(language) {
+			language = lang.DefaultCodeName()
+		}
 		g.CodeMode = true
+		g.wordSet = ""
 		g.Snippet = lang.RandomSnippet(language, difficulty)
 		g.text = normalizeTabs(g.Snippet.Content)
 	} else {
+		if !lang.HasWords(language) {
+			language = lang.DefaultWordName()
+		}
 		g.CodeMode = false
-		words := lang.RandomWords(language, difficulty, 200)
+		words, wordSet := lang.RandomWordsWithSet(language, difficulty, 200)
+		g.wordSet = wordSet
 		g.text = strings.Join(words, " ")
 	}
 	g.input = ""
