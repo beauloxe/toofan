@@ -3,7 +3,7 @@
 # toofan
 
 **A minimal, lightning-fast typing TUI**  
-_Practice with english words or real code snippets. No browser, no account, everything stays local._
+_Practice with local word lists or real code snippets. No browser, no account, everything stays local._
 
 <br>
 
@@ -15,7 +15,7 @@ _Practice with english words or real code snippets. No browser, no account, ever
 
 ## Features
 
-- **Two Modes:** Practice standard English words or real-world code snippets.
+- **Two Modes:** Practice human-language word lists or real-world code snippets.
 - **Curated Lessons:** Hand-written, topic-based code exercises across multiple languages.
 - **Dynamic Themes:** Cycle between multiple aesthetic terminal themes (`ctrl+t`).
 - **Live Metrics:** Real-time WPM speed and accuracy tracking.
@@ -93,13 +93,21 @@ accuracy = (total_chars - all_mistakes) / total_chars × 100
 </details>
 
 <details>
+<summary>How do I change word or code languages?</summary>
+
+Press `ctrl+l` before starting a test. In words mode it shows available word-list languages. In code mode it shows available code-snippet languages.
+
+</details>
+
+<details>
 <summary>Where are my files stored?</summary>
 
 Everything lives in `~/.config/toofan/` as plain text files:
 
 - `config.txt` : Your selected duration, mode, language, and theme
-- `results.txt` : Every test result (date, wpm, accuracy, duration, mode)
+- `results.txt` : Every test result (date, wpm, accuracy, duration, mode/language/word set)
 - `pb.txt` : Your personal bests per mode and duration
+- `lang/` : Optional runtime word lists and code snippets
 </details>
 
 <details>
@@ -169,14 +177,16 @@ We're always looking to add more. If your favorite programming language isn't su
 - [x] Curl script installation (macOS & Linux)
 - [x] Proper documentation for AI and contributors
 - [ ] More language support (python, rust, c, typescript, etc.)
-- [x] Difficulty levels for english words
+- [x] Word set selection for word lists
 - [ ] AUR, Homebrew, Nix packages
 - [ ] Fix top pane alignment to match bottom panes in profile
 
 ## Contributing
 
-- New snippets : Drop a file in `internal/lang/data/<language>/lessons/` and rebuild
-- New languages : Just a folder with lesson files
+- New snippets : Drop a file in `internal/lang/data/programming/<language>/` and rebuild
+- New word lists : Add `words.txt` or a Monkeytype-style `words.json` with `{ "name": "...", "words": [...] }`
+- New code languages : Add a folder under `internal/lang/data/programming/` with lesson files
+- Runtime content : Put files under `~/.config/toofan/lang/human/<language>/` or `~/.config/toofan/lang/programming/<language>/`
 - New themes : One Go file with a color palette
 - Bug fixes and UX improvements
 

@@ -33,9 +33,11 @@ internal/
     picker.go                   Picker overlays: language, lesson, theme, duration.
   lang/
     lang.go                     Loads embedded word lists and code snippets from data/.
-    data/<language>/            One directory per language.
-      words.txt                 Word list (one word per line, english only).
-      lessons/<topic>.go        Code lessons (hand-written, not generated).
+    data/human/<language>/      One directory per human word-list language.
+      words.txt                 Word list (one word per line).
+      words.json                Monkeytype-style word list: { "name": "...", "words": [...] }.
+    data/programming/<language>/ One directory per programming language.
+      <topic>.<ext>             Code lessons (hand-written, not generated).
   theme/
     theme.go                    Palette struct, All slice, Next/ByName helpers.
     <name>.go                   One file per theme. Each exports a single Palette var.
@@ -75,7 +77,7 @@ Then add `MyTheme` to the `All` slice in `theme.go`.
 
 ### New Language
 
-1. Create `internal/lang/data/<language>/` directory.
+1. Create `internal/lang/data/programming/<language>/` directory.
 2. Add lesson files inside it. Each file is a self-contained code snippet.
 3. Every lesson file must start with a `// Topic: <title>` comment line. The comment prefix depends on the language (`//`, `#`, or `--`).
 4. The code below the comments is what the user types.
@@ -83,7 +85,19 @@ Then add `MyTheme` to the `All` slice in `theme.go`.
 
 ### New Word List
 
-Place a `words.txt` inside a language's data directory. One word per line.
+Place a word file inside `internal/lang/data/human/<language>/`. Supported formats:
+
+- `words.txt`, one word per line or whitespace-separated.
+- `easy.txt`, `medium.txt`, `hard.txt` for named word sets.
+- `words.json` or any `.json` Monkeytype word list with `{ "name": "...", "words": [...] }`.
+- Top-level JSON string arrays are also accepted.
+
+The profile stats use the JSON `name` as the word-set label when present. Plain text files use the filename without extension.
+
+Runtime user content is also loaded from `~/.config/toofan/lang/` with the same split:
+
+- `~/.config/toofan/lang/human/<language>/words.json`
+- `~/.config/toofan/lang/programming/<language>/<topic>.<ext>`
 
 ## Coding Conventions
 
@@ -99,7 +113,7 @@ Place a `words.txt` inside a language's data directory. One word per line.
 Results are stored in `~/.config/toofan/results.txt`, one test per line:
 
 ```
-2026-04-01 22:18 |  85 wpm | 97.5% | 30s | words | 83 raw | 2 err
+2026-04-01 22:18 |  85 wpm | 97.5% | 30s | words:english:english_1k | 83 raw | 2 err
 2026-04-01 22:20 |  54 wpm | 91.0% | 15s | code:go | 60 raw | 5 err
 ```
 
@@ -108,7 +122,8 @@ Config is stored in `~/.config/toofan/config.txt` as key=value pairs:
 ```
 duration=30
 mode=words
-lang=go
+lang=english
+wordset=easy
 theme=tokyonight
 ```
 
