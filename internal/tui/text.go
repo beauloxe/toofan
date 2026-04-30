@@ -111,3 +111,79 @@ func cursorLine(lines []string, inputLen int) int {
 func col(w int, s string) string {
 	return lipgloss.NewStyle().Width(w).Render(s)
 }
+
+type tableCell struct {
+	width int
+	text  string
+	style lipgloss.Style
+}
+
+func tableHeader(cells ...tableCell) string {
+	return tableRow(cells...)
+}
+
+func tableRow(cells ...tableCell) string {
+	wrapped := make([][]string, len(cells))
+	height := 1
+	for i, cell := range cells {
+		wrapped[i] = wrapCell(cell.text, cell.width)
+		if len(wrapped[i]) > height {
+			height = len(wrapped[i])
+		}
+	}
+
+	var lines []string
+	for line := 0; line < height; line++ {
+		var b strings.Builder
+		for i, cell := range cells {
+			text := ""
+			if line < len(wrapped[i]) {
+				text = wrapped[i][line]
+			}
+			b.WriteString(fixedCell(cell.width, text, cell.style))
+		}
+		lines = append(lines, b.String())
+	}
+	return strings.Join(lines, "\n")
+}
+
+func wrapCell(s string, w int) []string {
+	if w <= 1 {
+		return []string{""}
+	}
+	s = strings.ReplaceAll(s, "\n", " ")
+	contentWidth := w - 1
+	if lipgloss.Width(s) <= contentWidth {
+		return []string{s}
+	}
+
+	var lines []string
+	var line strings.Builder
+	lineWidth := 0
+	for _, r := range s {
+		rw := lipgloss.Width(string(r))
+		if lineWidth > 0 && lineWidth+rw > contentWidth {
+			lines = append(lines, line.String())
+			line.Reset()
+			lineWidth = 0
+		}
+		line.WriteRune(r)
+		lineWidth += rw
+	}
+	if line.Len() > 0 {
+		lines = append(lines, line.String())
+	}
+	return lines
+}
+
+func fixedCell(w int, s string, style lipgloss.Style) string {
+	if w <= 0 {
+		return ""
+	}
+	rendered := style.Render(s)
+	pad := w - lipgloss.Width(rendered)
+	if pad <= 0 {
+		return rendered + " "
+	}
+	return rendered + strings.Repeat(" ", pad)
+}

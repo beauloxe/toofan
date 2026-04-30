@@ -207,24 +207,13 @@ func (m model) viewProfile(p theme.Palette) string {
 	val := lipgloss.NewStyle().Foreground(p.Typed).Bold(true)
 	hi := lipgloss.NewStyle().Foreground(p.Accent)
 
-	fullWidth := 86
-	if m.width > 0 && m.width < 92 {
-		fullWidth = m.width - 6
-	}
-	paneWidth := fullWidth / 3
-
 	title := val.Render("_toofan")
 
 	paneStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(p.Foreground).
 		Padding(1, 2)
-
-	borderSample := paneStyle.Width(paneWidth).Render("")
-	borderWidth := lipgloss.Width(borderSample) - paneWidth
-	if borderWidth < 0 {
-		borderWidth = 0
-	}
+	horizontalPadding := 3
 
 	hours := int(m.prof.Time.Hours())
 	mins := int(m.prof.Time.Minutes()) % 60
@@ -327,13 +316,14 @@ func (m model) viewProfile(p theme.Palette) string {
 		{"toofan", "120+"},
 	}
 
+	rankNameWidth := 0
+	for _, t := range tiers {
+		rankNameWidth = max(rankNameWidth, lipgloss.Width(t.name))
+	}
+
 	var rankLines []string
 	for _, t := range tiers {
-		// Pad name so prefix runs exactly to width 14 (total 16 with bullet).
-		// This guarantees that the labels start at the exact same visual column regardless of terminal rendering bugs.
-		paddedName := fmt.Sprintf("%-14s", t.name)
-
-		// Left align the labels so their starting digits form a single vertical line
+		paddedName := fmt.Sprintf("%-*s", rankNameWidth+5, t.name)
 		paddedLabel := fmt.Sprintf("%-6s", t.label)
 
 		var prefix, label string
@@ -354,6 +344,49 @@ func (m model) viewProfile(p theme.Palette) string {
 		strings.Join(rankLines, "\n"),
 	)
 
+	minPaneWidths := []int{
+		lipgloss.Width(overview) + horizontalPadding,
+		lipgloss.Width(bests) + horizontalPadding,
+		lipgloss.Width(ranks) + horizontalPadding,
+	}
+	borderWidth := lipgloss.Width(paneStyle.Width(1).Render("")) - 1
+	if borderWidth < 0 {
+		borderWidth = 0
+	}
+	histData, histWidths := m.recentTestRows()
+
+	var histRows []string
+	header := tableHeader(
+		tableCell{histWidths[0], "wpm", hi},
+		tableCell{histWidths[1], "raw", hi},
+		tableCell{histWidths[2], "accuracy", hi},
+		tableCell{histWidths[3], "typos", hi},
+		tableCell{histWidths[4], "mode", hi},
+		tableCell{histWidths[5], "language", hi},
+		tableCell{histWidths[6], "set", hi},
+		tableCell{histWidths[7], "time", hi},
+		tableCell{histWidths[8], "date", hi},
+	)
+	histRows = append(histRows, header, "")
+
+	for _, hist := range histData {
+		row := tableRow(
+			tableCell{histWidths[0], hist[0], val},
+			tableCell{histWidths[1], hist[1], dim},
+			tableCell{histWidths[2], hist[2], dim},
+			tableCell{histWidths[3], hist[3], dim},
+			tableCell{histWidths[4], hist[4], dim},
+			tableCell{histWidths[5], hist[5], dim},
+			tableCell{histWidths[6], hist[6], dim},
+			tableCell{histWidths[7], hist[7], dim},
+			tableCell{histWidths[8], hist[8], dim},
+		)
+		histRows = append(histRows, row)
+	}
+
+	histTable := lipgloss.JoinVertical(lipgloss.Left, histRows...)
+	paneWidth, wideBoxWidth := profileWidths(minPaneWidths, borderWidth, lipgloss.Width(histTable)+horizontalPadding)
+
 	// Render all boxes first to measure actual heights
 	overviewBox := paneStyle.Width(paneWidth).Render(overview)
 	bestBox := paneStyle.Width(paneWidth).Render(bests)
@@ -373,70 +406,17 @@ func (m model) viewProfile(p theme.Palette) string {
 	ranksBox = paneStyle.Width(paneWidth).Height(maxH - 2).Render(ranks)
 
 	topRow := lipgloss.JoinHorizontal(lipgloss.Top, overviewBox, bestBox, ranksBox)
-	rowWidth := lipgloss.Width(topRow)
-	wideBoxWidth := rowWidth - borderWidth
-	if wideBoxWidth < 0 {
-		wideBoxWidth = rowWidth
-	}
 
-	var histRows []string
-	header := lipgloss.JoinHorizontal(lipgloss.Left,
-		col(7, hi.Render("wpm")),
-		col(7, hi.Render("raw")),
-		col(12, hi.Render("accuracy")),
-		col(8, hi.Render("typos")),
-		col(8, hi.Render("mode")),
-		col(10, hi.Render("language")),
-		col(8, hi.Render("set")),
-		col(8, hi.Render("time")),
-		col(16, hi.Render("date")),
-	)
-	histRows = append(histRows, header, "")
-
-	limit := 10
-	if len(m.prof.Recent) < limit {
-		limit = len(m.prof.Recent)
-	}
-
-	for i := len(m.prof.Recent) - 1; i >= len(m.prof.Recent)-limit; i-- {
-		e := m.prof.Recent[i]
-		dstr := e.Date.Format("02 Jan 15:04")
-
-		modeType, modeLang, wordSet := splitResultMode(e.Mode)
-		modeLang = truncateLang(modeLang)
-		if wordSet == "" {
-			wordSet = "-"
-		}
-
-		durStr := "∞"
-		if e.Dur > 0 {
-			durStr = fmt.Sprintf("%ds", e.Dur)
-		}
-
-		row := lipgloss.JoinHorizontal(lipgloss.Left,
-			col(7, val.Render(fmt.Sprintf("%.0f", e.WPM))),
-			col(7, dim.Render(fmt.Sprintf("%.0f", e.Raw))),
-			col(12, dim.Render(fmt.Sprintf("%.0f%%", e.Acc))),
-			col(8, dim.Render(fmt.Sprintf("%d", e.Errors))),
-			col(8, dim.Render(modeType)),
-			col(10, dim.Render(modeLang)),
-			col(8, dim.Render(wordSet)),
-			col(8, dim.Render(durStr)),
-			col(16, dim.Render(dstr)),
-		)
-		histRows = append(histRows, row)
-	}
-
-	histBox := paneStyle.Width(wideBoxWidth).Render(
+	histBox := paneStyle.Width(wideBoxWidth-6).Render(
 		lipgloss.JoinVertical(lipgloss.Left,
 			hi.Render("recent tests"),
 			"",
-			lipgloss.JoinVertical(lipgloss.Left, histRows...),
+			histTable,
 		),
 	)
 
-	heatmapStr := heatGrid(m.prof.Activity, p, wideBoxWidth)
-	heatBox := paneStyle.Width(wideBoxWidth).Render(
+	heatmapStr := heatGrid(m.prof.Activity, p, wideBoxWidth-6)
+	heatBox := paneStyle.Width(wideBoxWidth-6).Render(
 		lipgloss.JoinVertical(lipgloss.Left,
 			hi.Render("activity map"),
 			"",
@@ -454,6 +434,78 @@ func (m model) viewProfile(p theme.Palette) string {
 
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, body)
 }
+
+func (m model) recentTestRows() ([][]string, []int) {
+	headers := []string{"wpm", "raw", "accuracy", "typos", "mode", "language", "set", "time", "date"}
+	widths := make([]int, len(headers))
+	for i, h := range headers {
+		widths[i] = lipgloss.Width(h) + 2
+	}
+
+	limit := 10
+	if len(m.prof.Recent) < limit {
+		limit = len(m.prof.Recent)
+	}
+
+	var rows [][]string
+	for i := len(m.prof.Recent) - 1; i >= len(m.prof.Recent)-limit; i-- {
+		e := m.prof.Recent[i]
+		modeType, modeLang, wordSet := splitResultMode(e.Mode)
+		modeLang = truncateLang(modeLang)
+		if wordSet == "" {
+			wordSet = "-"
+		}
+
+		durStr := "∞"
+		if e.Dur > 0 {
+			durStr = fmt.Sprintf("%ds", e.Dur)
+		}
+
+		row := []string{
+			fmt.Sprintf("%.0f", e.WPM),
+			fmt.Sprintf("%.0f", e.Raw),
+			fmt.Sprintf("%.0f%%", e.Acc),
+			fmt.Sprintf("%d", e.Errors),
+			modeType,
+			modeLang,
+			wordSet,
+			durStr,
+			e.Date.Format("02 Jan 15:04"),
+		}
+		for j, cell := range row {
+			widths[j] = max(widths[j], lipgloss.Width(cell)+1)
+		}
+		rows = append(rows, row)
+	}
+
+	return rows, widths
+}
+
+func tableWidth(widths []int) int {
+	total := 0
+	for _, w := range widths {
+		total += w
+	}
+	return total
+}
+
+func profileWidths(minPaneWidths []int, borderWidth int, histBoxWidth int) (int, int) {
+	minPaneWidth := 0
+	for _, w := range minPaneWidths {
+		minPaneWidth = max(minPaneWidth, w)
+	}
+
+	paneWidth := minPaneWidth
+	if histBoxWidth+borderWidth > (paneWidth+borderWidth)*3 {
+		paneWidth = (histBoxWidth - borderWidth*2 + 2) / 3
+	}
+	if paneWidth < minPaneWidth {
+		paneWidth = minPaneWidth
+	}
+	wideBoxWidth := (paneWidth+borderWidth)*3 - borderWidth
+	return paneWidth, wideBoxWidth
+}
+
 
 func heatGrid(activity map[string]int, p theme.Palette, width int) string {
 	now := time.Now()
