@@ -13,6 +13,24 @@ _Practice with local word lists or real code snippets. No browser, no account, e
 
 ---
 
+## Differences from upstream
+
+- **UTF-8 Input:** For proper handling of non-ASCII symbol set (e.g. Cyrillic languages).
+- **Refactored Language Handling:** Human and programming languages are now split into `internal/lang/data/{human,programming}`, instead of hard-coded `difficulty` there's now `language` and `set` properties.
+- **Monkeytype Wordsets:** Added support for Monkeytype [`.json` format](https://github.com/monkeytypegame/monkeytype/tree/master/frontend/static/languages).
+- **Runtime Wordset Loading:** Wordsets can now be loaded from `~/.config/toofan/lang/<type>/<language>` dynamically.
+- **Nix Flake**: Try it with `nix run github:beauloxe/toofan`!
+
+And some WIP/ideas:
+- [ ] Finish dynamic calculations for tables in the profile page
+- [ ] Fix duplicate words in typing tests (sometimes two identical words come one after another, e.g. `expensive expensive`)
+- [ ] Add `system` theme (use terminal base16 colors)
+- [ ] Move to JSON for state data (sorry plain-text enjoyers)
+
+### AI Disclosure
+
+Those changes were implemented using Codex CLI and GPT-5.4/5.5 on Medium thinking. I wanted to add new features for myself because I liked the project, but very little code was written by hand, so no guarantees on code safety, quality, etc.
+
 ## Features
 
 - **Two Modes:** Practice human-language word lists or real-world code snippets.
@@ -38,7 +56,7 @@ A personal overview of your typing speed history, personal bests across duration
 <img src="assets/profile-new.png" width="95%">
 </div>
 
-## Installation
+## Installation (upstream-only)
 
 ⚠️ **Note:** Always take a backup (`ctrl+s`) before updating toofan.
 
