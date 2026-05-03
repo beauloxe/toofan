@@ -8,7 +8,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/vyrx-dev/toofan/internal/game"
 	"github.com/vyrx-dev/toofan/internal/theme"
 )
 
@@ -24,7 +23,11 @@ func (m model) handleResults(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	case "tab":
-		m.duration = nextDur(m.duration)
+		if m.testMode == "words" && m.mode == "words" {
+			m.wordCount = nextWordCount(m.wordCount)
+		} else {
+			m.duration = nextDur(m.duration)
+		}
 		m.save()
 	case "ctrl+t":
 		theme.Next()
@@ -41,7 +44,7 @@ func (m model) handleResults(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
+	m.game = m.newGame()
 	m.showingErrors = false
 	m.active = screenTyping
 	return m, nil
@@ -77,8 +80,11 @@ func (m model) viewResults(p theme.Palette) string {
 
 	r := m.result
 
-	timeStr := fmt.Sprintf("%ds", m.duration)
-	if m.duration == 0 {
+	timeStr := fmt.Sprintf("%ds", int(math.Round(m.game.Elapsed().Seconds())))
+	if m.testMode == "time" && m.duration > 0 {
+		timeStr = fmt.Sprintf("%ds", m.duration)
+	}
+	if m.testMode == "time" && m.duration == 0 {
 		if r.WPM > 0 {
 			elapsed := float64(r.Chars) / 5.0 / r.WPM * 60.0
 			timeStr = fmt.Sprintf("%ds", int(math.Round(elapsed)))

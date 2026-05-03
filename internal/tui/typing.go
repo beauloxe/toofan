@@ -7,21 +7,28 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/vyrx-dev/toofan/internal/game"
 	"github.com/vyrx-dev/toofan/internal/theme"
 )
 
 func (m model) handleTyping(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
-		m.game.Reset(m.mode, m.lang, m.difficulty)
+		m.game = m.newGame()
 
 	case "tab":
 		m.pickingDur = true
 		m.durCur = 0
-		for i, d := range durations {
-			if d == m.duration {
-				m.durCur = i
+		if m.testMode == "words" && m.mode == "words" {
+			for i, count := range wordCounts {
+				if count == m.wordCount {
+					m.durCur = i
+				}
+			}
+		} else {
+			for i, d := range durations {
+				if d == m.duration {
+					m.durCur = i
+				}
 			}
 		}
 		return m, nil
@@ -42,12 +49,24 @@ func (m model) handleTyping(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !m.game.Started() {
 			if m.mode == "words" {
 				m.mode = "code"
+				m.testMode = "time"
 			} else {
 				m.mode = "words"
 			}
 			m.lang = languageForMode(m.mode, m.lang)
 			m.difficulty = wordSetForLanguage(m.mode, m.lang, m.difficulty)
-			m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
+			m.game = m.newGame()
+			m.save()
+		}
+
+	case "ctrl+g":
+		if m.mode == "words" && !m.game.Started() {
+			if m.testMode == "time" {
+				m.testMode = "words"
+			} else {
+				m.testMode = "time"
+			}
+			m.game = m.newGame()
 			m.save()
 		}
 
@@ -70,7 +89,7 @@ func (m model) handleTyping(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "ctrl+t":
 		if m.game.Started() {
-			m.game.Reset(m.mode, m.lang, m.difficulty)
+			m.game = m.newGame()
 		}
 		m.pickingTheme = true
 		m.themeCur = 0
@@ -173,12 +192,22 @@ func (m model) viewTyping(p theme.Palette) string {
 		timeLeft := m.game.TimeLeft()
 		if m.game.Elapsed().Seconds() >= 3 {
 			wpm := m.game.Stats().WPM
-			topLine = hi.Render(fmt.Sprintf("%d", timeLeft)) + dim.Render(fmt.Sprintf("   %.0f wpm", wpm))
+			if m.testMode == "words" && m.mode == "words" {
+				topLine = hi.Render(fmt.Sprintf("%ds", timeLeft)) + dim.Render(fmt.Sprintf("   %.0f wpm", wpm))
+			} else {
+				topLine = hi.Render(fmt.Sprintf("%d", timeLeft)) + dim.Render(fmt.Sprintf("   %.0f wpm", wpm))
+			}
 		} else {
-			topLine = hi.Render(fmt.Sprintf("%d", timeLeft))
+			if m.testMode == "words" && m.mode == "words" {
+				topLine = hi.Render(fmt.Sprintf("%ds", timeLeft))
+			} else {
+				topLine = hi.Render(fmt.Sprintf("%d", timeLeft))
+			}
 		}
 	} else {
-		if m.duration == 0 {
+		if m.testMode == "words" && m.mode == "words" {
+			topLine = hi.Render(fmt.Sprintf("%d words", m.wordCount))
+		} else if m.duration == 0 {
 			topLine = hi.Render("∞")
 		} else {
 			topLine = hi.Render(fmt.Sprintf("%d", m.duration))
@@ -218,6 +247,8 @@ func (m model) viewTyping(p theme.Palette) string {
 		var modeLabel string
 		if m.mode == "code" {
 			modeLabel = "code (" + m.lang + ")"
+		} else if m.testMode == "words" {
+			modeLabel = fmt.Sprintf("words%d (%s / %s)", m.wordCount, m.lang, m.game.WordSet())
 		} else {
 			modeLabel = "words (" + m.lang + " / " + m.game.WordSet() + ")"
 		}
@@ -239,13 +270,14 @@ func (m model) viewHelp(p theme.Palette) string {
 		hi.Render("keybinds"),
 		"",
 		val.Render("ctrl+w") + dim.Render("    toggle words/code"),
+		val.Render("ctrl+g") + dim.Render("    toggle time/word count"),
 		val.Render("ctrl+l") + dim.Render("    change language"),
 		val.Render("ctrl+o") + dim.Render("    change lesson (code mode only)"),
 		val.Render("ctrl+t") + dim.Render("    change theme"),
 		val.Render("ctrl+p") + dim.Render("    open profile"),
 		val.Render("ctrl+d") + dim.Render("    change word set (words mode only)"),
 		val.Render("ctrl+bksp") + dim.Render(" delete word"),
-		val.Render("tab") + dim.Render("       change duration & restart"),
+		val.Render("tab") + dim.Render("       change duration/word count & restart"),
 		val.Render("esc") + dim.Render("       restart test immediately"),
 		val.Render("e") + dim.Render("         view error words (results screen)"),
 		val.Render("?") + dim.Render("         show this help"),

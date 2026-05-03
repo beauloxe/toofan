@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -43,7 +44,7 @@ func (m model) handlePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.lang = names[m.langCur]
 		m.difficulty = wordSetForLanguage(m.mode, m.lang, m.difficulty)
 		m.pickingLang = false
-		m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
+		m.game = m.newGame()
 		m.save()
 	case "esc":
 		m.pickingLang = false
@@ -76,7 +77,7 @@ func (m model) handleLessonPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "enter":
 		m.pickingLesson = false
-		m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
+		m.game = m.newGame()
 		if m.lessonCur > 0 && m.lessonCur <= len(snippets) {
 			m.game.Snippet = snippets[m.lessonCur-1]
 			m.game.SetText(m.game.Snippet.Content)
@@ -120,7 +121,7 @@ func (m model) handleThemePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.save()
 	case "esc":
 		// revert to saved theme
-		_, _, _, _, th := game.LoadConfig()
+		_, _, _, _, th, _, _ := game.LoadConfig()
 		theme.Current = theme.ByName(th)
 		m.pickingTheme = false
 	}
@@ -146,6 +147,9 @@ func (m model) viewThemePicker(p theme.Palette) string {
 // --- duration picker ---
 
 func (m model) viewDurPicker(p theme.Palette) string {
+	if m.testMode == "words" && m.mode == "words" {
+		return renderList(p, "word count", intNames(wordCounts), nil, m.durCur)
+	}
 	durs := []string{"∞", "15", "30", "60", "120"}
 	return renderList(p, "time", durs, nil, m.durCur)
 }
@@ -154,6 +158,14 @@ func (m model) viewDurPicker(p theme.Palette) string {
 
 func (m model) viewDifficultyPicker(p theme.Palette) string {
 	return renderList(p, "word set", m.wordSetNames(), nil, m.diffCur)
+}
+
+func intNames(values []int) []string {
+	names := make([]string, len(values))
+	for i, value := range values {
+		names[i] = strconv.Itoa(value)
+	}
+	return names
 }
 
 // clean list — no borders, just highlighted selection, padded uniformly

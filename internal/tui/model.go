@@ -12,6 +12,7 @@ import (
 )
 
 var durations = []int{0, 15, 30, 60, 120}
+var wordCounts = []int{10, 25, 50, 100}
 
 type screen int
 
@@ -25,6 +26,8 @@ type model struct {
 	active     screen
 	game       *game.Game
 	duration   int
+	testMode   string // "time" or "words"
+	wordCount  int
 	mode       string // "words" or "code"
 	lang       string
 	difficulty string
@@ -60,14 +63,18 @@ type model struct {
 }
 
 func New() model {
-	duration, mode, language, difficulty, th := game.LoadConfig()
+	duration, mode, language, difficulty, th, testMode, wordCount := game.LoadConfig()
 	theme.Current = theme.ByName(th)
 	language = languageForMode(mode, language)
 	difficulty = wordSetForLanguage(mode, language, difficulty)
+	testMode = testModeForMode(mode, testMode)
+	wordCount = validWordCount(wordCount)
 
 	return model{
-		game:       game.New(duration, mode, language, difficulty),
+		game:       game.NewWithWordTarget(durationForTest(testMode, duration), mode, language, difficulty, wordTargetForTest(testMode, mode, wordCount)),
 		duration:   duration,
+		testMode:   testMode,
+		wordCount:  wordCount,
 		mode:       mode,
 		lang:       language,
 		difficulty: difficulty,
@@ -101,16 +108,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.game.Tick(time.Time(msg))
 				if m.game.Finished() {
 					m.result = m.game.Stats()
-					m.pb = game.GetPB(m.duration, m.mode)
+					m.pb = game.GetPB(m.pbTarget(), m.pbMode())
 					m.gotNewPB = m.result.WPM > m.pb
 
-					durToSave := m.duration
-					if durToSave == 0 {
-						durToSave = m.game.TimeLeft()
+					durToSave := int(m.game.Elapsed().Seconds())
+					if m.testMode == "time" && m.duration > 0 {
+						durToSave = m.duration
 					}
 					game.SaveResult(m.result, durToSave, m.mode, m.lang, m.game.WordSet())
 					if m.gotNewPB {
-						game.SavePB(m.duration, m.mode, m.result.WPM)
+						game.SavePB(m.pbTarget(), m.pbMode(), m.result.WPM)
 					}
 
 					m.active = screenResults
@@ -177,6 +184,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.pickingDur {
+			values := durations
+			if m.testMode == "words" && m.mode == "words" {
+				values = wordCounts
+			}
 			switch msg.String() {
 			case "up", "k", "left", "h":
 				if m.durCur > 0 {
@@ -184,14 +195,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			case "down", "j", "right", "l":
-				if m.durCur < len(durations)-1 {
+				if m.durCur < len(values)-1 {
 					m.durCur++
 				}
 				return m, nil
 			case "enter":
-				m.duration = durations[m.durCur]
+				if m.testMode == "words" && m.mode == "words" {
+					m.wordCount = wordCounts[m.durCur]
+				} else {
+					m.duration = durations[m.durCur]
+				}
 				m.pickingDur = false
-				m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
+				m.game = m.newGame()
 				m.save()
 				return m, nil
 			case "esc":
@@ -222,7 +237,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				m.difficulty = sets[m.diffCur]
 				m.pickingDifficulty = false
-				m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
+				m.game = m.newGame()
 				m.save()
 				return m, nil
 			case "esc":
@@ -293,7 +308,7 @@ func (m model) View() string {
 }
 
 func (m model) save() {
-	game.SaveConfig(m.duration, m.mode, m.lang, m.difficulty, theme.Current.Name)
+	game.SaveConfig(m.duration, m.mode, m.lang, m.difficulty, theme.Current.Name, m.testMode, m.wordCount)
 }
 
 func languageForMode(mode string, language string) string {
@@ -328,4 +343,61 @@ func nextDur(cur int) int {
 		}
 	}
 	return 30
+}
+
+func nextWordCount(cur int) int {
+	for i, count := range wordCounts {
+		if count == cur {
+			return wordCounts[(i+1)%len(wordCounts)]
+		}
+	}
+	return 25
+}
+
+func (m model) newGame() *game.Game {
+	return game.NewWithWordTarget(durationForTest(m.testMode, m.duration), m.mode, m.lang, m.difficulty, wordTargetForTest(m.testMode, m.mode, m.wordCount))
+}
+
+func (m model) pbMode() string {
+	if m.mode == "words" && m.testMode == "words" {
+		return "words-count"
+	}
+	return m.mode
+}
+
+func (m model) pbTarget() int {
+	if m.mode == "words" && m.testMode == "words" {
+		return m.wordCount
+	}
+	return m.duration
+}
+
+func durationForTest(testMode string, duration int) int {
+	if testMode == "words" {
+		return 0
+	}
+	return duration
+}
+
+func wordTargetForTest(testMode string, mode string, wordCount int) int {
+	if mode == "words" && testMode == "words" {
+		return validWordCount(wordCount)
+	}
+	return 0
+}
+
+func testModeForMode(mode string, testMode string) string {
+	if mode != "words" || testMode != "words" {
+		return "time"
+	}
+	return "words"
+}
+
+func validWordCount(wordCount int) int {
+	for _, count := range wordCounts {
+		if count == wordCount {
+			return wordCount
+		}
+	}
+	return 25
 }

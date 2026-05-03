@@ -24,6 +24,7 @@ type Game struct {
 	mistakeAt  map[int]bool // every wrong keystroke ever — never cleared by backspace
 	started    bool
 	duration   int
+	wordTarget int
 	CodeMode   bool // true = snippet-based typing, false = standard words
 	difficulty string
 	wordSet    string
@@ -39,13 +40,19 @@ func (g *Game) Input() string          { return g.input }
 func (g *Game) Errors() map[int]bool   { return g.errors }
 func (g *Game) Started() bool          { return g.started }
 func (g *Game) Duration() int          { return g.duration }
+func (g *Game) WordTarget() int        { return g.wordTarget }
 func (g *Game) Elapsed() time.Duration { return g.elapsed }
 func (g *Game) SetText(s string)       { g.text = normalizeTabs(s) }
 func (g *Game) WordSet() string        { return g.wordSet }
 
 func New(duration int, mode string, language string, difficulty string) *Game {
+	return NewWithWordTarget(duration, mode, language, difficulty, 0)
+}
+
+func NewWithWordTarget(duration int, mode string, language string, difficulty string, wordTarget int) *Game {
 	g := &Game{
 		duration:   duration, // 0 means infinite mode (tied to length of snippet)
+		wordTarget: wordTarget,
 		errors:     make(map[int]bool),
 		mistakeAt:  make(map[int]bool),
 		difficulty: difficulty,
@@ -62,7 +69,11 @@ func New(duration int, mode string, language string, difficulty string) *Game {
 		if !lang.HasWords(language) {
 			language = lang.DefaultWordName()
 		}
-		words, wordSet := lang.RandomWordsWithSet(language, difficulty, 200)
+		count := 200
+		if wordTarget > 0 {
+			count = wordTarget
+		}
+		words, wordSet := lang.RandomWordsWithSet(language, difficulty, count)
 		g.wordSet = wordSet
 		g.text = strings.Join(words, " ")
 	}
@@ -323,12 +334,18 @@ func (g *Game) ErrorWords() []string {
 }
 
 func (g *Game) Reset(mode string, language string, difficulty string) {
+	g.ResetWithWordTarget(mode, language, difficulty, g.wordTarget)
+}
+
+func (g *Game) ResetWithWordTarget(mode string, language string, difficulty string, wordTarget int) {
 	g.difficulty = difficulty
+	g.wordTarget = wordTarget
 	if mode == "code" {
 		if !lang.HasSnippets(language) {
 			language = lang.DefaultCodeName()
 		}
 		g.CodeMode = true
+		g.wordTarget = 0
 		g.wordSet = ""
 		g.Snippet = lang.RandomSnippet(language, difficulty)
 		g.text = normalizeTabs(g.Snippet.Content)
@@ -337,7 +354,11 @@ func (g *Game) Reset(mode string, language string, difficulty string) {
 			language = lang.DefaultWordName()
 		}
 		g.CodeMode = false
-		words, wordSet := lang.RandomWordsWithSet(language, difficulty, 200)
+		count := 200
+		if wordTarget > 0 {
+			count = wordTarget
+		}
+		words, wordSet := lang.RandomWordsWithSet(language, difficulty, count)
 		g.wordSet = wordSet
 		g.text = strings.Join(words, " ")
 	}
