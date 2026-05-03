@@ -174,13 +174,7 @@ func (m model) viewTyping(p theme.Palette) string {
 		visible = 7
 	}
 
-	// Paginate the display so lines don't instantly scroll up every time you hit enter.
-	// This keeps code snippets fixed in view until you finish the whole block.
-	top := (curLine / visible) * visible
-	bot := top + visible
-	if bot > len(lines) {
-		bot = len(lines)
-	}
+	top, bot := visibleLineWindow(len(lines), curLine, visible)
 
 	text := lipgloss.NewStyle().
 		Padding(0, 2).

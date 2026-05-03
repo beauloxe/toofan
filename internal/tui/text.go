@@ -107,6 +107,21 @@ func cursorLine(lines []string, inputLen int) int {
 	return max(0, len(lines)-1)
 }
 
+func visibleLineWindow(lineCount, curLine, visible int) (int, int) {
+	if lineCount <= 0 || visible <= 0 {
+		return 0, 0
+	}
+	if visible >= lineCount {
+		return 0, lineCount
+	}
+
+	top := curLine - visible + 2
+	top = max(0, top)
+	top = min(top, lineCount-visible)
+
+	return top, top + visible
+}
+
 // col renders text in a fixed-width column.
 func col(w int, s string) string {
 	return lipgloss.NewStyle().Width(w).Render(s)
