@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -115,7 +116,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if m.testMode == "time" && m.duration > 0 {
 						durToSave = m.duration
 					}
-					game.SaveResult(m.result, durToSave, m.mode, m.lang, m.game.WordSet())
+					game.SaveResult(m.result, durToSave, m.resultMode(), m.lang, m.game.WordSet())
 					if m.gotNewPB {
 						game.SavePB(m.pbTarget(), m.pbMode(), m.result.WPM)
 					}
@@ -361,6 +362,13 @@ func (m model) newGame() *game.Game {
 func (m model) pbMode() string {
 	if m.mode == "words" && m.testMode == "words" {
 		return "words-count"
+	}
+	return m.mode
+}
+
+func (m model) resultMode() string {
+	if m.mode == "words" && m.testMode == "words" {
+		return fmt.Sprintf("words%d", m.wordCount)
 	}
 	return m.mode
 }

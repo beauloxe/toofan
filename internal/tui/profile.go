@@ -69,8 +69,12 @@ func loadProfile() profileData {
 		if pd.Best[mode] == nil {
 			pd.Best[mode] = make(map[int]float64)
 		}
-		if e.WPM > pd.Best[mode][e.Dur] {
-			pd.Best[mode][e.Dur] = e.WPM
+		target := e.Dur
+		if count := wordCountFromMode(mode); count > 0 {
+			target = count
+		}
+		if e.WPM > pd.Best[mode][target] {
+			pd.Best[mode][target] = e.WPM
 		}
 		pd.Activity[e.Date.Format("2006-01-02")]++
 	}
@@ -85,7 +89,7 @@ func loadProfile() profileData {
 	var codeTests []testEntry
 	for _, e := range all {
 		mode, _, _ := splitResultMode(e.Mode)
-		if mode == "words" {
+		if strings.HasPrefix(mode, "words") {
 			wordsTests = append(wordsTests, e)
 		} else {
 			codeTests = append(codeTests, e)
@@ -173,6 +177,14 @@ func splitResultMode(mode string) (string, string, string) {
 		return "code", "", ""
 	}
 	return "words", "english", ""
+}
+
+func wordCountFromMode(mode string) int {
+	if !strings.HasPrefix(mode, "words") || mode == "words" {
+		return 0
+	}
+	count, _ := strconv.Atoi(strings.TrimPrefix(mode, "words"))
+	return count
 }
 
 func (m model) handleProfile(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -267,7 +279,7 @@ func (m model) viewProfile(p theme.Palette) string {
 		formatRow("accuracy", accVal, accUnit),
 	)
 
-	durStyle := lipgloss.NewStyle().Width(6).Align(lipgloss.Left)
+	durStyle := lipgloss.NewStyle().Width(9).Align(lipgloss.Left)
 	colStyle := lipgloss.NewStyle().Width(8).Align(lipgloss.Center)
 
 	headerLabels := lipgloss.JoinHorizontal(lipgloss.Left,
@@ -276,14 +288,31 @@ func (m model) viewProfile(p theme.Palette) string {
 		colStyle.Render(dim.Render("code")),
 	)
 
+	hasBest := func(dur string, d int) bool {
+		if strings.HasPrefix(dur, "words") {
+			wordsMode := fmt.Sprintf("words%d", d)
+			_, ok := m.prof.Best[wordsMode][d]
+			return ok
+		}
+		_, hasWords := m.prof.Best["words"][d]
+		_, hasCode := m.prof.Best["code"][d]
+		return hasWords || hasCode
+	}
+
 	bestRowVert := func(dur string, d int) string {
 		wStr := dim.Render("-")
-		if w, ok := m.prof.Best["words"][d]; ok {
+		wordsMode := "words"
+		if strings.HasPrefix(dur, "words") {
+			wordsMode = fmt.Sprintf("words%d", d)
+		}
+		if w, ok := m.prof.Best[wordsMode][d]; ok {
 			wStr = val.Render(fmt.Sprintf("%.0f", w))
 		}
 		cStr := dim.Render("-")
-		if c, ok := m.prof.Best["code"][d]; ok {
-			cStr = val.Render(fmt.Sprintf("%.0f", c))
+		if !strings.HasPrefix(dur, "words") {
+			if c, ok := m.prof.Best["code"][d]; ok {
+				cStr = val.Render(fmt.Sprintf("%.0f", c))
+			}
 		}
 
 		return lipgloss.JoinHorizontal(lipgloss.Left,
@@ -293,15 +322,30 @@ func (m model) viewProfile(p theme.Palette) string {
 		)
 	}
 
-	bests := lipgloss.JoinVertical(lipgloss.Left,
+	bestLines := []string{
 		hi.Render("personal bests"),
 		"",
 		headerLabels,
-		bestRowVert("15s", 15),
-		bestRowVert("30s", 30),
-		bestRowVert("60s", 60),
-		bestRowVert("120s", 120),
-	)
+	}
+	for _, target := range []struct {
+		label string
+		value int
+	}{
+		{"15s", 15},
+		{"30s", 30},
+		{"60s", 60},
+		{"120s", 120},
+		{"words10", 10},
+		{"words25", 25},
+		{"words50", 50},
+		{"words100", 100},
+	} {
+		if hasBest(target.label, target.value) {
+			bestLines = append(bestLines, bestRowVert(target.label, target.value))
+		}
+	}
+
+	bests := lipgloss.JoinVertical(lipgloss.Left, bestLines...)
 
 	cur := rank(m.prof.RecentAvg)
 	type tier struct {

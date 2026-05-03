@@ -62,9 +62,9 @@ func GetPB(duration int, mode string) float64 {
 			key := parts[0]
 			val, _ := strconv.ParseFloat(parts[1], 64)
 
-			kp := strings.SplitN(key, "-", 2)
-			if len(kp) == 2 && kp[0] == mode {
-				dur, _ := strconv.Atoi(kp[1])
+			idx := strings.LastIndex(key, "-")
+			if idx > 0 && key[:idx] == mode {
+				dur, _ := strconv.Atoi(key[idx+1:])
 				if dur == duration {
 					return val
 				}
