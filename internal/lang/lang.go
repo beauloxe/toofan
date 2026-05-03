@@ -486,7 +486,11 @@ func RandomWordsWithSet(name string, setName string, count int) ([]string, strin
 
 	out := make([]string, count)
 	for i := range out {
-		out[i] = selected.Words[rand.Intn(len(selected.Words))]
+		idx := rand.Intn(len(selected.Words))
+		if i > 0 && len(selected.Words) > 1 && selected.Words[idx] == out[i-1] {
+			idx = (idx + 1 + rand.Intn(len(selected.Words)-1)) % len(selected.Words)
+		}
+		out[i] = selected.Words[idx]
 	}
 	return out, selected.Name
 }

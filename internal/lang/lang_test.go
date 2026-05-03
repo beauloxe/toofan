@@ -78,6 +78,31 @@ func TestRandomWordsWithSetUsesNamedSet(t *testing.T) {
 	}
 }
 
+func TestRandomWordsWithSetAvoidsAdjacentDuplicates(t *testing.T) {
+	oldLanguages := languages
+	t.Cleanup(func() {
+		languages = oldLanguages
+	})
+
+	languages = map[string]*langData{
+		"test": {
+			WordSets: []wordSet{
+				{Name: "small", Words: []string{"one", "two"}},
+			},
+		},
+	}
+
+	words, label := RandomWordsWithSet("test", "small", 100)
+	if label != "small" {
+		t.Fatalf("RandomWordsWithSet() label = %q, want %q", label, "small")
+	}
+	for i := 1; i < len(words); i++ {
+		if words[i] == words[i-1] {
+			t.Fatalf("RandomWordsWithSet() returned adjacent duplicate %q at index %d", words[i], i)
+		}
+	}
+}
+
 func TestWordSetNames(t *testing.T) {
 	sets := WordSetNames("english")
 	for _, want := range []string{"easy", "medium", "hard"} {
