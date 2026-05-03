@@ -23,9 +23,14 @@ _Practice with local word lists or real code snippets. No browser, no account, e
 
 And some WIP/ideas:
 - [ ] Finish dynamic calculations for tables in the profile page
-- [ ] Fix duplicate words in typing tests (sometimes two identical words come one after another, e.g. `expensive expensive`)
 - [ ] Add `system` theme (use terminal base16 colors)
-- [ ] Move to JSON for state data (sorry plain-text enjoyers)
+- [ ] Move to JSON for state data? (sorry plain-text enjoyers)
+- [x] Fix duplicate words in typing tests (sometimes two identical words come one after another, e.g. `expensive expensive`)
+
+Other features:
+- [x] Word count typing test mode
+- [x] Monkeytype-like sliding input line
+- [x] Ctrl-backspace to erase the whole word
 
 ### AI Disclosure
 
