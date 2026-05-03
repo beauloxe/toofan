@@ -407,7 +407,7 @@ func (m model) viewProfile(p theme.Palette) string {
 
 	topRow := lipgloss.JoinHorizontal(lipgloss.Top, overviewBox, bestBox, ranksBox)
 
-	histBox := paneStyle.Width(wideBoxWidth-6).Render(
+	histBox := paneStyle.Width(wideBoxWidth - 6).Render(
 		lipgloss.JoinVertical(lipgloss.Left,
 			hi.Render("recent tests"),
 			"",
@@ -416,7 +416,7 @@ func (m model) viewProfile(p theme.Palette) string {
 	)
 
 	heatmapStr := heatGrid(m.prof.Activity, p, wideBoxWidth-6)
-	heatBox := paneStyle.Width(wideBoxWidth-6).Render(
+	heatBox := paneStyle.Width(wideBoxWidth - 6).Render(
 		lipgloss.JoinVertical(lipgloss.Left,
 			hi.Render("activity map"),
 			"",
@@ -505,7 +505,6 @@ func profileWidths(minPaneWidths []int, borderWidth int, histBoxWidth int) (int,
 	wideBoxWidth := (paneWidth+borderWidth)*3 - borderWidth
 	return paneWidth, wideBoxWidth
 }
-
 
 func heatGrid(activity map[string]int, p theme.Palette, width int) string {
 	now := time.Now()

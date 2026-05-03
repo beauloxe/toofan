@@ -206,6 +206,21 @@ func (g *Game) Backspace() {
 	}
 }
 
+func (g *Game) BackspaceWord() {
+	if g.input == "" {
+		return
+	}
+
+	g.Backspace()
+	for g.input != "" {
+		last, ok := lastRune(g.input)
+		if !ok || last == ' ' || last == '\n' {
+			return
+		}
+		g.Backspace()
+	}
+}
+
 func (g *Game) TimeLeft() int {
 	if !g.started {
 		return g.duration

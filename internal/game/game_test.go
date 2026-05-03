@@ -46,6 +46,58 @@ func TestBackspaceHandlesCyrillic(t *testing.T) {
 	}
 }
 
+func TestBackspaceWordDeletesPreviousWord(t *testing.T) {
+	g := New(0, "words", "english", "easy")
+	g.SetText("hello world")
+
+	for _, ch := range "hello wor" {
+		g.TypeChar(ch)
+	}
+	g.BackspaceWord()
+
+	if g.Input() != "hello " {
+		t.Fatalf("input = %q, want %q", g.Input(), "hello ")
+	}
+}
+
+func TestBackspaceWordDeletesWordBeforeSpace(t *testing.T) {
+	g := New(0, "words", "english", "easy")
+	g.SetText("hello world")
+
+	for _, ch := range "hello " {
+		g.TypeChar(ch)
+	}
+	g.BackspaceWord()
+
+	if g.Input() != "" {
+		t.Fatalf("input = %q, want empty", g.Input())
+	}
+}
+
+func TestBackspaceWordClearsLiveErrorsOnly(t *testing.T) {
+	g := New(0, "words", "english", "easy")
+	g.SetText("hello world")
+
+	for _, ch := range "hello wxr" {
+		g.TypeChar(ch)
+	}
+	g.BackspaceWord()
+
+	if g.Input() != "hello " {
+		t.Fatalf("input = %q, want %q", g.Input(), "hello ")
+	}
+	if len(g.Errors()) != 0 {
+		t.Fatalf("errors = %#v, want none", g.Errors())
+	}
+
+	for _, ch := range "wor" {
+		g.TypeChar(ch)
+	}
+	if len(g.ErrorWords()) != 1 || g.ErrorWords()[0] != "world" {
+		t.Fatalf("ErrorWords() = %#v, want %#v", g.ErrorWords(), []string{"world"})
+	}
+}
+
 func TestErrorWordsHandlesCyrillic(t *testing.T) {
 	g := New(0, "words", "english", "easy")
 	g.SetText("кіт пес")

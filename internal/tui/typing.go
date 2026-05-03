@@ -81,7 +81,9 @@ func (m model) handleTyping(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "ctrl+h":
-		if !m.game.Started() {
+		if m.game.Started() {
+			m.game.BackspaceWord()
+		} else {
 			m.showHelp = true
 			return m, nil
 		}
@@ -102,6 +104,9 @@ func (m model) handleTyping(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "enter":
 		m.game.TypeChar('\n')
+
+	case "ctrl+backspace", "ctrl+?":
+		m.game.BackspaceWord()
 
 	case "backspace":
 		m.game.Backspace()
@@ -239,6 +244,7 @@ func (m model) viewHelp(p theme.Palette) string {
 		val.Render("ctrl+t") + dim.Render("    change theme"),
 		val.Render("ctrl+p") + dim.Render("    open profile"),
 		val.Render("ctrl+d") + dim.Render("    change word set (words mode only)"),
+		val.Render("ctrl+bksp") + dim.Render(" delete word"),
 		val.Render("tab") + dim.Render("       change duration & restart"),
 		val.Render("esc") + dim.Render("       restart test immediately"),
 		val.Render("e") + dim.Render("         view error words (results screen)"),
