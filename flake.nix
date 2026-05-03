@@ -6,7 +6,11 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = inputs @ {flake-parts, ...}:
+  outputs = inputs @ {
+    self,
+    flake-parts,
+    ...
+  }:
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = ["x86_64-linux" "aarch64-linux"];
       perSystem = {
@@ -17,7 +21,10 @@
         system,
         ...
       }: let
-        toofan = pkgs.callPackage ./package.nix {};
+        toofan = let
+          revision = self.shortRev or self.dirtyShortRev or "unknown";
+        in
+          pkgs.callPackage ./package.nix {version = revision;};
       in {
         packages = {
           inherit toofan;

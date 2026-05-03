@@ -1,10 +1,11 @@
 {
+  version,
   lib,
   buildGoModule,
 }:
 buildGoModule (finalAttrs: {
   pname = "toofan";
-  version = "0-unstable-2026-04-30";
+  inherit version;
 
   src = ./.;
 
